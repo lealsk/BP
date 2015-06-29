@@ -2,6 +2,8 @@ package {
 
 import com.emibap.textureAtlas.DynamicAtlas;
 
+import flash.desktop.NativeApplication;
+
 import flash.display.Bitmap;
 
 import flash.display.BitmapData;
@@ -11,6 +13,7 @@ import flash.display.Sprite;
 import flash.display.StageQuality;
 import flash.filters.BitmapFilterQuality;
 import flash.filters.BlurFilter;
+import flash.system.System;
 
 import starling.core.Starling;
 
@@ -62,15 +65,15 @@ public class Main extends Sprite {
 
     public var players:Array = new Array();
     public var units:Vector.<Vector.<UnitView>> = new Vector.<Vector.<UnitView>>();
+    public var uiElements:Vector.<UIElementView> = new <UIElementView>[];
     public var stateMachine:StateMachine = new StateMachine();
 
     private var ingameTimer:CustomTimer = new CustomTimer(5000, 1);
 
+    public var menuLayer:Sprite = new Sprite();
     public var spaceLayer:Sprite = new Sprite();
     public var buildingLayer:Sprite = new Sprite();
     public var unitLayer:Sprite = new Sprite();
-    public var lineLayer:flash.display.Sprite = new flash.display.Sprite();
-    public var newLineLayer:flash.display.Sprite = new flash.display.Sprite();
     public var placeBuildingLayer:Sprite = new Sprite();
     private var buildingId:int = 0;
     public var netConnect:NetConnect = new NetConnect();
@@ -85,12 +88,16 @@ public class Main extends Sprite {
     public function Main() {
         addEventListener(Event.ADDED_TO_STAGE, onAddedToStage);
 
+        stateMachine.state = "initMenues";
+        stateMachine.defineStateRelation("initMenues", "mainMenu", "complete");
+        stateMachine.defineStateRelation("mainMenu", "quit", "quit");
+
         if(NETGAME){
-            stateMachine.state = "connect";
+            stateMachine.defineStateRelation("mainMenu", "connect", "start");
             stateMachine.defineStateRelation("connect", "waitingForPlayers", "complete");
             stateMachine.defineStateRelation("waitingForPlayers", "init", "complete");
         } else {
-            stateMachine.state = "init";
+            stateMachine.defineStateRelation("mainMenu", "init", "start");
         }
         if(CROSSED_TURNS){
             stateMachine.defineStateRelationWithParam("init", null, "turn0", "forward", "complete");
@@ -123,24 +130,11 @@ public class Main extends Sprite {
         stage.addEventListener(KeyboardEvent.KEY_UP, onKeyReleased);
 
         addChild(spaceLayer);
-        //Starling.current.nativeStage.addChild(lineLayer);
-        //Starling.current.nativeStage.addChild(newLineLayer);
         addChild(unitLayer);
         addChild(buildingLayer);
         addChild(placeBuildingLayer);
-        lineLayer.addChild(new Bitmap(lineBmpd));
-        //lineLayer.blendMode = BlendMode.LAYER;
-        //lineLayer.alpha = .25;
-        //newLineLayer.blendMode = BlendMode.LAYER;
-        //newLineLayer.alpha = .8;
+        addChild(menuLayer);
 
-        ingameTimer.addEventListener(TimerEvent.TIMER_COMPLETE, onIngameTimerComplete);
-        terrain = new Image(atlas.getTexture("Main_TerrainPng_00000"));
-        spaceLayer.addChild(terrain);
-
-        if(NETGAME) {
-            netConnect.connect();
-        }
     }
 
     public function moveMouse(x:Number, y:Number):void{
@@ -199,34 +193,34 @@ public class Main extends Sprite {
         stateMachine.dispatchEvent("complete");
     }
 
+    private function startGame():void{
+        stateMachine.dispatchEvent("start");
+    }
+
+    private function quitGame():void{
+        NativeApplication.nativeApplication.exit();
+    }
+
     private function onEnterFrame(e:Event):void{
-/*
-        for each(var _units:Vector.<UnitView> in units) {
-            for each(var unit:UnitView in _units) {
 
-                unit.view.x = Math.random()* stage.stageWidth;
-                unit.view.y = Math.random()* stage.stageHeight ;
-            }
-        }*/
-        logicCounter += FPS_LOGIC;
+        switch(stateMachine.state){
+            case "initMenues":
+                createUIElement(100, 100, 100, 50, 0xffffffff, "PLAY", startGame);
+                createUIElement(100, 160, 100, 50, 0xffffffff, "QUIT", quitGame);
+                stateMachine.dispatchEvent("complete");
+                break;
 
-        if(logicCounter < FPS_GRAPHICS) {
-            for each(var _units:Vector.<UnitView> in units){
-                for each(var unit:UnitView in _units) {
-                    unit.owner.x += unit.owner.velX;
-                    unit.owner.y += unit.owner.velY;
+            case "init":
+                menuLayer.visible = false;
+
+                ingameTimer.addEventListener(TimerEvent.TIMER_COMPLETE, onIngameTimerComplete);
+                terrain = new Image(atlas.getTexture("Main_TerrainPng_00000"));
+                spaceLayer.addChild(terrain);
+
+                if(NETGAME) {
+                    netConnect.connect();
                 }
-            }
-        } else {
-            logicCounter = 0;
 
-            var timeStep:Number = 1000 / FPS_LOGIC;
-
-            for each(var timer:CustomTimer in CustomTimer.instances) {
-                timer.update(timeStep);
-            }
-
-            if (stateMachine.state == "init") {
                 var player1:Player = new Player();
                 player1.team = 0;
                 player1.type = "a";
@@ -250,8 +244,6 @@ public class Main extends Sprite {
                 if (NETGAME) {
                     player1.remote = netConnect.nearId > netConnect.farId ? true : false;
                     player2.remote = netConnect.nearId > netConnect.farId ? false : true;
-                    /*player1.npc = player1.remote ? NPC_OPONENT : NPC_PLAYER;
-                    player2.npc = player1.remote ? NPC_PLAYER : NPC_OPONENT;*/
                     player1.npc = NPC_PLAYER;
                     player2.npc = NPC_OPONENT;
                 } else {
@@ -260,61 +252,68 @@ public class Main extends Sprite {
                 }
 
                 stateMachine.dispatchEvent("complete");
+                break;
 
-            }
+            default:
 
-            //var deleteUnits:Array = new Array();
-            var unit:UnitView;
-            var unitsLength:int;
-            for each(var _units:Vector.<UnitView> in units){
-                unitsLength = _units.length;
-                for(var i:int = 0; i < unitsLength; i++){
-                    unit = _units[i];
-                    if (stateMachine.state == "ingame") {
-                        if (unit.lines && unit.lines.parent == newLineLayer) {
-                            //lineLayer.addChild(unit.lines);
+
+                logicCounter += FPS_LOGIC;
+
+                if(logicCounter < FPS_GRAPHICS) {
+                    for each(var _units:Vector.<UnitView> in units){
+                        for each(var unit:UnitView in _units) {
+                            unit.owner.x += unit.owner.velX;
+                            unit.owner.y += unit.owner.velY;
                         }
-                        unit.owner.update(timeStep);
-                        if (unit.owner.dead) {
-                            if (unit.owner.type == "main") {
-                                ingameTimer.stop();
-                                stateMachine.dispatchEvent("finish");
-                            }
-                            //deleteUnits.push(unit);
-                            Utils.deleteUnitView(_units, i);
-                            if(unit.owner.parent){
-                                unit.owner.parent.removeChild(unit.owner);
-                            }
-
-                            unitsLength--;
-                            unit.view.parent.removeChild(unit.view);
-                            if (unit.lines) {
-                                //unit.lines.parent.removeChild(unit.lines);
-                            }
-                        }
-                        /*unit.view.x = unit.owner.x;
-                        unit.view.y = unit.owner.y;*/
                     }
-                    unit.view.x = unit.owner.x;
-                    unit.view.y = unit.owner.y;
+                } else {
+                    logicCounter = 0;
+
+                    var timeStep:Number = 1000 / FPS_LOGIC;
+
+                    for each(var timer:CustomTimer in CustomTimer.instances) {
+                        timer.update(timeStep);
+                    }
+
+
+                    var unit:UnitView;
+                    var unitsLength:int;
+                    for each(var _units:Vector.<UnitView> in units){
+                        unitsLength = _units.length;
+                        for(var i:int = 0; i < unitsLength; i++){
+                            unit = _units[i];
+                            if (stateMachine.state == "ingame") {
+                                unit.owner.update(timeStep);
+                                if (unit.owner.dead) {
+                                    if (unit.owner.type == "main") {
+                                        ingameTimer.stop();
+                                        stateMachine.dispatchEvent("finish");
+                                    }
+                                    Utils.deleteUnitView(_units, i);
+                                    if(unit.owner.parent){
+                                        unit.owner.parent.removeChild(unit.owner);
+                                    }
+
+                                    unitsLength--;
+                                    unit.view.parent.removeChild(unit.view);
+                                }
+                            }
+                            unit.view.x = unit.owner.x;
+                            unit.view.y = unit.owner.y;
+                        }
+                    }
+                    for each(var player:Player in players) {
+                        player.update();
+                    }
+                    if (stateMachine.state == "ingame") {
+                        if (!ingameTimer.running) {
+                            ingameTimer.duration += 1000;
+                            ingameTimer.start();
+                        }
+                    }
                 }
-            }
-            /*for each(var unit:UnitView in deleteUnits) {
-                units[unit.owner.team].splice(units[unit.owner.team].indexOf(unit), 1);
-                unit.view.parent.removeChild(unit.view);
-                if (unit.lines) {
-                    unit.lines.parent.removeChild(unit.lines);
-                }
-            }*/
-            for each(var player:Player in players) {
-                player.update();
-            }
-            if (stateMachine.state == "ingame") {
-                if (!ingameTimer.running) {
-                    ingameTimer.duration += 1000;
-                    ingameTimer.start();
-                }
-            }
+
+                break;
         }
     }
 
@@ -399,6 +398,26 @@ public class Main extends Sprite {
 
         terrain.texture.dispose();
         terrain.texture = Texture.fromBitmapData(lineBmpd);
+    }
+
+    public function createUIElement(x:Number, y:Number, w:Number, h:Number, color:uint, text:String, callback:Function):UIElementView{
+        var element:UIElement = new UIElement();
+        element.x = x;
+        element.y = y;
+        element.w = w;
+        element.h = h;
+        element.color = color;
+        element.text = text;
+
+        var elementView:UIElementView = new UIElementView(element);
+        menuLayer.addChild(elementView.view);
+        elementView.view.addEventListener(TouchEvent.TOUCH, function(e:TouchEvent){
+            var touch:Touch = e.touches[0];
+            if(touch.phase == TouchPhase.ENDED){
+                callback();
+            }
+        });
+        return elementView;
     }
 
     public function createBuilding(x:Number, y:Number, type:String, player:Player, parent:Unit = null):UnitView{
@@ -493,7 +512,6 @@ public class Main extends Sprite {
                 lines.y = unit.y;
                 lines.graphics.lineStyle(10, unit.team == 0 ? 0xff0000 : 0x0000ff);
                 unitView.lines = lines;
-                //Main.instance.newLineLayer.addChild(lines);
                 unit.path = new Array();
 
                 break;
