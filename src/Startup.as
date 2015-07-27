@@ -8,7 +8,7 @@ import flash.events.Event;
 
 import starling.core.Starling;
 
-[SWF(backgroundColor="#100617", width="800", height="600", frameRate="60")]
+[SWF(backgroundColor="#050505", width="800", height="600", frameRate="60")]
 public class Startup extends Sprite {
     private var starlingInstance:Starling;
 

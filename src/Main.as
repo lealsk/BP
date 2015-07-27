@@ -1,6 +1,7 @@
 package {
 
 import com.emibap.textureAtlas.DynamicAtlas;
+import com.greensock.TweenLite;
 
 import flash.desktop.NativeApplication;
 
@@ -8,19 +9,24 @@ import flash.display.Bitmap;
 
 import flash.display.BitmapData;
 import flash.display.BlendMode;
+import flash.display.Shape;
+import flash.display.Sprite;
 
 import flash.display.Sprite;
 import flash.display.StageQuality;
 import flash.filters.BitmapFilterQuality;
 import flash.filters.BlurFilter;
-import flash.system.System;
+import flash.filters.GlowFilter;
+import flash.geom.Matrix;
+import flash.geom.Rectangle;
+
+import org.osmf.elements.HTMLElement;
 
 import starling.core.Starling;
 
 import starling.display.Image;
 import starling.display.Sprite;
 import starling.events.Event;
-import flash.events.MouseEvent;
 import flash.events.TimerEvent;
 import flash.geom.Point;
 
@@ -35,6 +41,12 @@ import starling.textures.Texture;
 import starling.textures.TextureAtlas;
 
 public class Main extends Sprite {
+
+    public static const ORIENTATION:String = "topDown";
+    //public static const ORIENTATION:String = "leftRight";
+
+    public static const STAGE_WIDTH:Number = 800;
+    public static const STAGE_HEIGHT:Number = 600;
 
     public static const FPS_GRAPHICS:int = 60;
     public static const FPS_LOGIC:int = 60;
@@ -55,9 +67,24 @@ public class Main extends Sprite {
     [Embed(source="../assets/d.png")]
     public static var DPng:Class;
 
-    private var terrainPng:Bitmap = new TerrainPng();
+    [Embed(source="../assets/u1.png")]
+    public static var U1Png:Class;
+    [Embed(source="../assets/u2.png")]
+    public static var U2Png:Class;
+    [Embed(source="../assets/u3.png")]
+    public static var U3Png:Class;
+    [Embed(source="../assets/u4.png")]
+    public static var U4Png:Class;
+    [Embed(source="../assets/u5.png")]
+    public static var U5Png:Class;
+    [Embed(source="../assets/u6.png")]
+    public static var U6Png:Class;
+    [Embed(source="../assets/u7.png")]
+    public static var U7Png:Class;
+
+    private var terrainPng:Bitmap = new (ORIENTATION == "topDown" ? TerrainPng : TerrainPng)();
     
-    public static var assetClasses:Vector.<Class> = new <Class>[TerrainPng, APng, BPng, CPng, DPng];
+    public static var assetClasses:Vector.<Class> = new <Class>[ORIENTATION == "topDown" ? TerrainPng : TerrainPng, APng, BPng, CPng, DPng, U1Png, U2Png, U3Png, U4Png, U5Png, U6Png, U7Png];
 
     public static var instance:Main;
 
@@ -86,6 +113,12 @@ public class Main extends Sprite {
     public var mousePressed:Boolean = false;
 
     public function Main() {
+        var terrainBmpd:BitmapData = new BitmapData(STAGE_WIDTH, STAGE_HEIGHT, false);
+        var matrix:Matrix = new Matrix();
+        matrix.scale(STAGE_WIDTH/terrainPng.width, STAGE_HEIGHT/terrainPng.height);
+        terrainBmpd.draw(terrainPng, matrix, null, null, null, true);
+        terrainPng.bitmapData = terrainBmpd;
+
         addEventListener(Event.ADDED_TO_STAGE, onAddedToStage);
 
         stateMachine.state = "initMenues";
@@ -93,10 +126,13 @@ public class Main extends Sprite {
         stateMachine.defineStateRelation("mainMenu", "quit", "quit");
 
         if(NETGAME){
+            stateMachine.state = "connect";
             stateMachine.defineStateRelation("mainMenu", "connect", "start");
-            stateMachine.defineStateRelation("connect", "waitingForPlayers", "complete");
+            stateMachine.defineStateRelation("connect", "connecting", "next");
+            stateMachine.defineStateRelation("connecting", "waitingForPlayers", "complete");
             stateMachine.defineStateRelation("waitingForPlayers", "init", "complete");
         } else {
+            stateMachine.state = "init";
             stateMachine.defineStateRelation("mainMenu", "init", "start");
         }
         if(CROSSED_TURNS){
@@ -114,6 +150,8 @@ public class Main extends Sprite {
             stateMachine.defineStateRelation("ingame", "turn0", "complete");
         }
         stateMachine.defineStateRelation("ingame", "end", "finish");
+
+        //stateMachine.state = "test";
     }
 
     private function onAddedToStage(e:Event):void{
@@ -121,7 +159,7 @@ public class Main extends Sprite {
         instance = this;
 
         atlas = DynamicAtlas.fromClassVector(assetClasses);
-        lineBmpd = new BitmapData(stage.stageWidth, stage.stageHeight, true, 0x0);
+        lineBmpd = new BitmapData(STAGE_WIDTH, STAGE_HEIGHT, true, 0x0);
 
         removeEventListener(Event.ADDED_TO_STAGE, onAddedToStage);
         stage.addEventListener(Event.ENTER_FRAME, onEnterFrame);
@@ -182,7 +220,9 @@ public class Main extends Sprite {
     private function onIngameTimerComplete(e:TimerEvent):void{
 
         for each(var player:Player in players){
-           player.gold += 1;
+            for each(var unitView:UnitView in units[player.team]) {
+                player.gold += unitView.owner.income;
+            }
         }
         for each(var _units:Vector.<UnitView> in units){
             for each(var unit:UnitView in _units){
@@ -201,45 +241,67 @@ public class Main extends Sprite {
         NativeApplication.nativeApplication.exit();
     }
 
+    private function test():void{
+
+    }
+
     private function onEnterFrame(e:Event):void{
 
         switch(stateMachine.state){
+            case "test":
+                test();
+                stateMachine.state = "none";
+                break;
+
             case "initMenues":
-                createUIElement(100, 100, 100, 50, 0xffffffff, "PLAY", startGame);
-                createUIElement(100, 160, 100, 50, 0xffffffff, "QUIT", quitGame);
+                createUIElement(100, 200, 100, 50, 0xffffffff, "PLAY", startGame, menuLayer);
+                createUIElement(100, 260, 100, 50, 0xffffffff, "QUIT", quitGame, menuLayer);
                 stateMachine.dispatchEvent("complete");
                 break;
 
+            case "connect":
+                netConnect.connect();
+                stateMachine.dispatchEvent("next");
+                break;
+
             case "init":
+
                 menuLayer.visible = false;
 
                 ingameTimer.addEventListener(TimerEvent.TIMER_COMPLETE, onIngameTimerComplete);
-                terrain = new Image(atlas.getTexture("Main_TerrainPng_00000"));
+                terrain = new Image(Texture.fromColor(STAGE_WIDTH, STAGE_HEIGHT, 0x100617));
                 spaceLayer.addChild(terrain);
-
-                if(NETGAME) {
-                    netConnect.connect();
-                }
 
                 var player1:Player = new Player();
                 player1.team = 0;
                 player1.type = "a";
-                player1.gold = 1;
+                player1.hud = createUIElement(STAGE_WIDTH - 101, 1, 100, 50, 0x55555555, "gold: 0", null, placeBuildingLayer);
+                player1.gold = 10;
                 players.push(player1);
                 units[player1.team] = new Vector.<UnitView>();
 
                 var player2:Player = new Player();
                 player2.team = 1;
                 player2.type = "b";
-                player2.gold = 1;
+                player2.hud = createUIElement(1, STAGE_HEIGHT - 51, 100, 50, 0x55555555, "gold: 0", null, placeBuildingLayer);
+                player2.gold = 10;
                 players.push(player2);
                 units[player2.team] = new Vector.<UnitView>();
 
                 player1.enemyPlayer = player2;
                 player2.enemyPlayer = player1;
 
-                createBuilding(stage.stageWidth / 2, 60, "main", player1);
-                createBuilding(stage.stageWidth / 2, stage.stageHeight - 60, "main", player2);
+
+                switch(ORIENTATION){
+                    case "topDown":
+                        createBuilding(STAGE_WIDTH / 2, 60, "main", player1);
+                        createBuilding(STAGE_WIDTH / 2, STAGE_HEIGHT - 60, "main", player2);
+                        break;
+                    case "leftRight":
+                        createBuilding(60, STAGE_HEIGHT / 2, "main", player1);
+                        createBuilding(STAGE_WIDTH - 60, STAGE_HEIGHT / 2, "main", player2);
+                        break;
+                }
 
                 if (NETGAME) {
                     player1.remote = netConnect.nearId > netConnect.farId ? true : false;
@@ -256,6 +318,12 @@ public class Main extends Sprite {
 
             default:
 
+                for each(var player:Player in players){
+                    var newText:String = "gold: " + player.gold.toString();
+                    if(newText != player.hud.textField.text) {
+                        player.hud.textField.text = newText;
+                    }
+                }
 
                 logicCounter += FPS_LOGIC;
 
@@ -267,6 +335,23 @@ public class Main extends Sprite {
                         }
                     }
                 } else {
+
+                    for each(var _units:Vector.<UnitView> in units){
+                        for each(var unit:UnitView in _units) {
+                            if(unit.view) {
+                                if (stateMachine.state == "turn0" && unit.owner.team == 1) {
+                                    if (unit.view.alpha != .3) unit.view.alpha = .3;
+                                } else if (stateMachine.state == "turn1" && unit.owner.team == 0) {
+                                    if (unit.view.alpha != .3) unit.view.alpha = .3;
+                                } else if (stateMachine.state == "ingame" || !unit.owner.player.remote) {
+                                    if (unit.view.alpha != 1) unit.view.alpha = 1;
+                                } else {
+                                    if (unit.view.alpha != .3) unit.view.alpha = .3;
+                                }
+                            }
+                        }
+                    }
+
                     logicCounter = 0;
 
                     var timeStep:Number = 1000 / FPS_LOGIC;
@@ -295,11 +380,16 @@ public class Main extends Sprite {
                                     }
 
                                     unitsLength--;
-                                    unit.view.parent.removeChild(unit.view);
+                                    if(unit.view) {
+                                        unit.view.parent.removeChild(unit.view);
+                                    }
                                 }
                             }
-                            unit.view.x = unit.owner.x;
-                            unit.view.y = unit.owner.y;
+                            if(unit.view) {
+                                unit.view.x = unit.owner.x;
+                                unit.view.y = unit.owner.y;
+                                unit.view.rotation = unit.owner.rotation + Math.PI / 2;
+                            }
                         }
                     }
                     for each(var player:Player in players) {
@@ -317,47 +407,47 @@ public class Main extends Sprite {
         }
     }
 
-    private function getUnitImageByType(type:String, player:Player):Sprite{
+    private function getImageByName(name:String, scaleX:Number, scaleY:Number, color:uint):Sprite{
+
         var unitImg:Sprite = new Sprite();
         var image:Image;
-        switch(type){
-            case "main":
-                image = new Image(atlas.getTexture(player.type == "a" ? "Main_DPng_00000" : "Main_DPng_00000"));
-                image.scaleX = 1.5;
-                image.scaleY = 1.5;
-                break;
-            case "spawner":
-                image = new Image(atlas.getTexture(player.type == "a" ? "Main_CPng_00000" : "Main_CPng_00000"));
-                image.scaleX = 1;
-                image.scaleY = 1;
-                break;
-            case "unit":
-                image = new Image(atlas.getTexture(player.type == "a" ? "Main_APng_00000" : "Main_BPng_00000"));
-                image.scaleX = .5;
-                image.scaleY = .5;
-                break;
-            case "heavySpawner":
-                image = new Image(atlas.getTexture(player.type == "a" ? "Main_CPng_00000" : "Main_CPng_00000"));
-                image.scaleX = 1.25;
-                image.scaleY = 1.25;
-                break;
-            case "heavyUnit":
-                image = new Image(atlas.getTexture(player.type == "a" ? "Main_APng_00000" : "Main_BPng_00000"));
-                image.scaleX = .75;
-                image.scaleY = .75;
-                break;
+        image = new Image(atlas.getTexture(name));
+        image.scaleX = scaleX;
+        image.scaleY = scaleY;
+        if(image) {
+            image.x = -image.width / 2;
+            image.y = -image.height / 2;
+            unitImg.addChild(image);
+            image.color = color;
+            return unitImg;
+        } else {
+            return null;
         }
-        image.x =  - image.width / 2;
-        image.y =  - image.height / 2;
-        unitImg.addChild(image);
-        return unitImg;
+    }
+
+    private function getUnitImageByType(type:String, player:Player, data:Object):Sprite{
+        var image:Sprite;
+        var color:uint;
+        if (player.team == 0) {
+            color = 0xffff0000;
+        } else {
+            color = 0xff00ff00;
+        }
+        image = getImageByName("Main_"+data.asset+"_00000", data.scaleX, data.scaleY, color);
+
+        return image;
     }
 
     public function createPlaceView(x:Number, y:Number, type:String, player:Player):UnitView{
-        var unitImg:Sprite = getUnitImageByType(type, player);
+        var unitImg:Sprite = getUnitImageByType(type, player, Utils.getDefinitionByType(type));
         unitImg.alpha = .5;
         unitImg.x = x;
         unitImg.y = y;
+        if(player.team){
+            unitImg.rotation = 0;
+        } else {
+            unitImg.rotation = Math.PI;
+        }
         placeBuildingLayer.addChild(unitImg);
         var unitView:UnitView = new UnitView(null, unitImg);
         return unitView;
@@ -400,7 +490,7 @@ public class Main extends Sprite {
         terrain.texture = Texture.fromBitmapData(lineBmpd);
     }
 
-    public function createUIElement(x:Number, y:Number, w:Number, h:Number, color:uint, text:String, callback:Function):UIElementView{
+    public function createUIElement(x:Number, y:Number, w:Number, h:Number, color:uint, text:String, callback:Function, layer:Sprite):UIElementView{
         var element:UIElement = new UIElement();
         element.x = x;
         element.y = y;
@@ -410,7 +500,7 @@ public class Main extends Sprite {
         element.text = text;
 
         var elementView:UIElementView = new UIElementView(element);
-        menuLayer.addChild(elementView.view);
+        layer.addChild(elementView.view);
         elementView.view.addEventListener(TouchEvent.TOUCH, function(e:TouchEvent){
             var touch:Touch = e.touches[0];
             if(touch.phase == TouchPhase.ENDED){
@@ -420,11 +510,21 @@ public class Main extends Sprite {
         return elementView;
     }
 
+    private function getLayerByEntityType(entityType:String):Sprite{
+        switch(entityType){
+            case "building":
+                return buildingLayer;
+            case "unit":
+                return unitLayer;
+        }
+        return null;
+    }
+
     public function createBuilding(x:Number, y:Number, type:String, player:Player, parent:Unit = null):UnitView{
 
-
+        var data:Object = Utils.getDefinitionByType(type);
         var layer:Sprite;
-        var unitImg:Sprite = getUnitImageByType(type, player);
+        var unitImg:Sprite = getUnitImageByType(type, player, data);
         var unit:Unit = new Unit();
         var unitView:UnitView = new UnitView(unit, unitImg);
         if(parent){
@@ -435,71 +535,92 @@ public class Main extends Sprite {
         unit.team = player.team;
         unit.type = type;
         unit.player = player;
+
+        unit.hp = data.hp;
+        unit.radius = data.radius;
+        unit.range = data.range;
+        unit.speed = data.speed;
+        unit.damage = data.damage;
+        unit.aoe = data.aoe;
+        unit.entityType = data.entityType;
+        unit.maxUnits = data.maxUnits;
+        unit.income = data.income;
+
+        if(player.team){
+            unit.rotation = -Math.PI / 2;
+        } else {
+            unit.rotation = Math.PI / 2;
+        }
+
+        layer = getLayerByEntityType(unit.entityType);
+
+        for each(var act:String in data.actions){
+            var actionData:Object = Utils.getDefinitionByType(act);
+            var action:Action = new Action(actionData.cooldown);
+            action.owner = unit;
+            if(actionData.hasOwnProperty("unitSummoned")){
+                action.unitCreated = actionData.unitSummoned;
+            }
+            unit.actions.push(action);
+        }
+
+        var behavior:Behavior = new Behavior();
+        if(unit.speed > 0){
+            behavior = new Behavior();
+            behavior.unit = unit;
+            behavior.init("followPath");
+            var action:Action = new Action();
+            action.owner = unit;
+            action.move = true;
+            unit.moveAction = action;
+            unit.path = parent.path;
+        }
+        if(data.hasOwnProperty("damage") && data.hasOwnProperty("attackCooldown")){
+            if(!behavior){
+                behavior = new Behavior();
+                behavior.unit = unit;
+                behavior.init("wait");
+            }
+            var action:Action = new Action(data.attackCooldown);
+            action.owner = unit;
+            action.damage = true;
+            unit.attackAction = action;
+            unit.mode = "moveAndAttack";
+        }
+        if(behavior){
+            unit.behaviors.push(behavior);
+        }
         switch(type){
             case "main":
-                unit.entityType = "building";
-                layer = buildingLayer;
-                unit.hp = 100;
-                unit.radius = 30;
                 player.main = unit;
                 break;
-            case "spawner":
-                unit.entityType = "building";
-                var action:Action = new Action(2000);
+            /*case "spawner":
+                unit.squadronCounts = [4,2,2];
+                var action:Action = new Action(5000);
+                action.owner = unit;
+                action.unitCreated = "squadron";
+                unit.actions.push(action);
+                unit.mode = "moveAndAttack";
+                break;*/
+            case "squadron":
+
+                var action:Action = new Action(5000);
                 action.owner = unit;
                 action.unitCreated = "unit";
                 unit.actions.push(action);
-                layer = buildingLayer;
-                unit.maxUnits = 0;
-                unit.hp = 10;
-                unit.radius = 30;
-                unit.mode = "moveAndAttack";
-                break;
-            case "heavySpawner":
-                unit.entityType = "building";
-                var action:Action = new Action(3000);
-                action.owner = unit;
-                action.unitCreated = "heavyUnit";
-                unit.actions.push(action);
-                layer = buildingLayer;
-                unit.maxUnits = 0;
-                unit.hp = 10;
-                unit.radius = 30;
-                unit.mode = "moveAndAttack";
-                break;
-            case "unit":
-                unit.entityType = "unit";
+
                 var behavior:Behavior = new Behavior();
                 behavior.unit = unit;
-                behavior.init();
+                behavior.init("followPath");
                 unit.behaviors.push(behavior);
                 var action:Action = new Action();
                 action.owner = unit;
                 action.move = true;
                 unit.moveAction = action;
                 unit.path = parent.path;
-                unit.speed = .75;
-                unit.hp = 1;
-                unit.radius = 15;
-                unit.damage = .01;
-                layer = unitLayer;
-                break;
-            case "heavyUnit":
-                unit.entityType = "unit";
-                var behavior:Behavior = new Behavior();
-                behavior.unit = unit;
-                behavior.init();
-                unit.behaviors.push(behavior);
-                var action:Action = new Action();
-                action.owner = unit;
-                action.move = true;
-                unit.moveAction = action;
-                unit.path = parent.path;
-                unit.hp = 2;
-                unit.speed = .5;
-                layer = unitLayer;
-                unit.radius = 20;
-                unit.damage = .01;
+
+                unit.squadronPoints = unit.buildPointsByCounts(unit.parent.squadronCounts);
+
                 break;
 
         }
@@ -521,9 +642,11 @@ public class Main extends Sprite {
             netConnect.sendMessage({action:"place", x:unit.x, y:unit.y, type:unit.type, team:unit.team});
         }
 
-        unitImg.x = unit.x;
-        unitImg.y = unit.y;
-        layer.addChild(unitImg);
+        if(unitImg) {
+            unitImg.x = unit.x;
+            unitImg.y = unit.y;
+            layer.addChild(unitImg);
+        }
 
         unit.init();
 

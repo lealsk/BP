@@ -10,6 +10,7 @@ public class UIElementView {
 
     public var element:UIElement;
     public var view:Sprite;
+    public var textField:TextField;
 
     public function UIElementView(element:UIElement) {
         view = new Sprite();
@@ -24,7 +25,7 @@ public class UIElementView {
             }
         }
         if(element.text){
-            var textField:TextField = new TextField(100, 50, element.text, "Verdana", 12, 0x0, false);
+            textField = new TextField(100, 50, element.text, "Verdana", 12, 0x0, false);
             view.addChild(textField);
         }
         if(element.x && element.y){

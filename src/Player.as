@@ -22,6 +22,7 @@ public class Player {
     private var buildingSelected:String;
     private var selectedUnit:UnitView;
     private var stateMachine:StateMachine = new StateMachine();
+    public var hud:UIElementView;
 
     private var placeTimer:CustomTimer = new CustomTimer(500);
     private var lineTimer:CustomTimer = new CustomTimer(200);
@@ -93,44 +94,73 @@ public class Player {
         var unit:UnitView;
         unit = buyBuilding(unitToPutLines.view.x, unitToPutLines.view.y, buildingSelected);
         if(Math.random() < .3){
-            unit.owner.mode = "moveOnly";
+            //unit.owner.mode = "moveOnly";
         }
 
         unitToPutLines.view.parent.removeChild(unitToPutLines.view);
         if(unit){
 
-            var mainPos:Point;
-            for each(var otherUnit:UnitView in Main.instance.units[team == 0 ? 1 : 0]){
-                if(otherUnit.owner.type == "main" && otherUnit.owner.team != team){
-                    mainPos = new Point(otherUnit.owner.x, otherUnit.owner.y);
-                    break;
+            var data:Object = Utils.getDefinitionByType(buildingSelected);
+            if(data.hasOwnProperty("hasPath")) {
+                var mainPos:Point;
+                for each(var otherUnit:UnitView in Main.instance.units[team == 0 ? 1 : 0]) {
+                    if (otherUnit.owner.type == "main" && otherUnit.owner.team != team) {
+                        mainPos = new Point(otherUnit.owner.x, otherUnit.owner.y);
+                        break;
+                    }
                 }
-            }
-            if(mainPos){
-                linesToPlace = unit.owner.curvePath([mainPos]);
-                placeTimer.stop();
-                lineTimer.start();
-                unitToPutLines = unit;
+                if (mainPos) {
+                    linesToPlace = unit.owner.curvePath([mainPos]);
+                    placeTimer.stop();
+                    lineTimer.start();
+                    unitToPutLines = unit;
+                }
             }
 
         }
     }
 
     private function onPlaceTimer(e:TimerEvent):void{
-        var buttonPressed:int = 2 * Math.random();
 
-        buildingSelected = ["spawner", "heavySpawner"][buttonPressed];
+        var buildings:Array = ["unitSpawner", "fastUnitSpawner", "rangedUnitSpawner", "strongRangedUnitSpawner", "aoeUnitSpawner", "heavyUnitSpawner", "knightSpawner", "resource", "tower"];
+        var shuffled:Array = new Array(buildings.length);
 
-        if (gold <= 0) {
+        var randomPos:Number = 0;
+        for (var i:int = 0; i < shuffled.length; i++)
+        {
+            randomPos = int(Math.random() * buildings.length);
+            shuffled[i] = buildings.splice(randomPos, 1)[0];
+        }
+        buildingSelected = null;
+        for(var i:int = shuffled.length - 1; i >= 0; i--){
+            var data:Object = Utils.getDefinitionByType(shuffled[i]);
+            if(gold >= data.cost){
+                buildingSelected = shuffled[i];
+            }
+        }
+        if (!buildingSelected || gold <= 0) {
             placeTimer.stop();
             Main.instance.passTurn();
         } else {
-            if (team == 0) {
-                unitToPutLines = Main.instance.createPlaceView(Main.instance.stage.stageWidth * Math.random(), 25 + ((Main.instance.stage.stageHeight / 2) - 50) * Math.random(), buildingSelected, this);
-                TweenLite.to(unitToPutLines.view, placeTimer.duration/2000, {x:Main.instance.stage.stageWidth * Math.random(), y:25 + ((Main.instance.stage.stageHeight / 2) - 50) * Math.random(), onComplete:onPlaceMoveComplete});
-            } else {
-                unitToPutLines = Main.instance.createPlaceView(Main.instance.stage.stageWidth * Math.random(), Main.instance.stage.stageHeight - 25 - ((Main.instance.stage.stageHeight / 2) - 50) * Math.random(), buildingSelected, this);
-                TweenLite.to(unitToPutLines.view, placeTimer.duration/2000, {x:Main.instance.stage.stageWidth * Math.random(), y:Main.instance.stage.stageHeight - 25 - ((Main.instance.stage.stageHeight / 2) - 50) * Math.random(), onComplete:onPlaceMoveComplete});
+            switch(Main.ORIENTATION){
+                case "topDown":
+                    if (team == 0) {
+                        unitToPutLines = Main.instance.createPlaceView(Main.STAGE_WIDTH * Math.random(), 25 + ((Main.STAGE_HEIGHT / 2) - 50) * Math.random(), buildingSelected, this);
+                        TweenLite.to(unitToPutLines.view, placeTimer.duration/2000, {x:Main.STAGE_WIDTH * Math.random(), y:25 + ((Main.STAGE_HEIGHT / 2) - 50) * Math.random(), onComplete:onPlaceMoveComplete});
+                    } else {
+                        unitToPutLines = Main.instance.createPlaceView(Main.STAGE_WIDTH * Math.random(), Main.STAGE_HEIGHT - 25 - ((Main.STAGE_HEIGHT / 2) - 50) * Math.random(), buildingSelected, this);
+                        TweenLite.to(unitToPutLines.view, placeTimer.duration/2000, {x:Main.STAGE_WIDTH * Math.random(), y:Main.STAGE_HEIGHT - 25 - ((Main.STAGE_HEIGHT / 2) - 50) * Math.random(), onComplete:onPlaceMoveComplete});
+                    }
+                    break;
+                case "leftRight":
+                    if (team == 0) {
+                        unitToPutLines = Main.instance.createPlaceView(25 + ((Main.STAGE_WIDTH / 2) - 50) * Math.random(), Main.STAGE_HEIGHT * Math.random(), buildingSelected, this);
+                        TweenLite.to(unitToPutLines.view, placeTimer.duration/2000, {x:25 + ((Main.STAGE_WIDTH / 2) - 50) * Math.random(), y:Main.STAGE_HEIGHT * Math.random(), onComplete:onPlaceMoveComplete});
+                    } else {
+                        unitToPutLines = Main.instance.createPlaceView(Main.STAGE_WIDTH - 25 - ((Main.STAGE_WIDTH / 2) - 50) * Math.random(), Main.STAGE_HEIGHT * Math.random(), buildingSelected, this);
+                        TweenLite.to(unitToPutLines.view, placeTimer.duration/2000, {x:Main.STAGE_WIDTH - 25 - ((Main.STAGE_WIDTH / 2) - 50) * Math.random(), y:Main.STAGE_HEIGHT * Math.random(), onComplete:onPlaceMoveComplete});
+                    }
+                    break;
             }
         }
     }
@@ -146,8 +176,9 @@ public class Player {
     }
 
     private function buyBuilding(x:Number, y:Number, type:String):UnitView{
-        if(gold >= 1){
-            gold--;
+        var data:Object = Utils.getDefinitionByType(type);
+        if(gold >= data.cost){
+            gold-= data.cost;
             return Main.instance.createBuilding(x, y, type, this);
         }
         return null;

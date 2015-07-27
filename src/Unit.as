@@ -6,6 +6,11 @@ package {
 import flash.geom.Point;
 
 public class Unit {
+    public var range:Number;
+    public var aoe:Number;
+    public var squadronPos:int = 0;
+    public var squadronPoints:Array;
+    public var squadronCounts:Array;
     public var parent:Unit;
     public var children:Vector.<Unit>;
     public var x:Number=0;
@@ -26,9 +31,12 @@ public class Unit {
     public var velX:Number = 0;
     public var velY:Number = 0;
     public var moveAction:Action;
+    public var attackAction:Action;
     public var behaviors:Array = new Array();
     public var damage:Number = 0;
     public var currentPathPoint:int = 0;
+    public var rotation:Number = 0;
+    public var income:int = 0;
 
     private var _mode:String;
 
@@ -84,6 +92,9 @@ public class Unit {
             for each(var behavior:Behavior in behaviors){
                 behavior.update(time);
             }
+
+            if(attackAction)
+                attackAction.update(time);
 /*
             if(maxUnits > 0 && unitsCreated >= maxUnits){
                 if (type == "spawner" && Math.random() < .2) {
@@ -125,6 +136,39 @@ public class Unit {
         }
 
         return newPath;
+    }
+    public function buildPointsByCounts(counts:Array):Array{
+        var result:Array = new Array();
+        var sep:Number = 20;
+        var sepY:Number = 10;
+        var addY:Number = 0;
+        for(var i:int = 0; i<counts.length;i++){
+            switch(counts[i]){
+                case 0:
+                    addY += 1;
+                    break;
+                case 1:
+                    result.push(new Point(0,i*(sepY+addY)));
+                    break;
+                case 2:
+                    result.push(new Point(-sep/2,i*(sepY+addY)));
+                    result.push(new Point(sep/2,i*(sepY+addY)));
+                    break;
+                case 3:
+                    result.push(new Point(-sep,i*(sepY+addY)));
+                    result.push(new Point(0,i*(sepY+addY)));
+                    result.push(new Point(sep,i*(sepY+addY)));
+                    break;
+                case 4:
+                    result.push(new Point(-sep,i*(sepY+addY)));
+                    result.push(new Point(0,-(sepY+addY)/2+i*(sepY+addY)));
+                    result.push(new Point(sep,i*(sepY+addY)));
+                    result.push(new Point(0,sepY/2+i*(sepY+addY)));
+                    addY += .5;
+                    break;
+            }
+        }
+        return result;
     }
 }
 }
