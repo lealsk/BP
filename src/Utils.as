@@ -48,6 +48,7 @@ public class Utils {
                 result.hp = 5000;
                 result.radius = 30;
                 result.cost = 10;
+                result.hasPath = false;
                 break;
             case "main":
                 result = getDefinitionByType("building");
@@ -55,14 +56,16 @@ public class Utils {
                 result.scaleX = 1.5;
                 result.scaleY = 1.5;
                 result.income = 10;
+                result.cost = 0;
                 break;
             case "tower":
                 result = getDefinitionByType("building");
                 result.attackCooldown = 1000;
                 result.asset = "CPng";
                 result.aoe = 25;
-                result.cost = 15;
+                result.cost = 10;
                 result.damage = 75;
+                result.range = 60;
                 break;
             case "resource":
                 result = getDefinitionByType("building");
@@ -177,13 +180,13 @@ public class Utils {
                 result = getDefinitionByType("unit");
                 result.hp = 100;
                 result.damage = 45;
-                result.range = 35;
+                result.range = 50;
                 result.asset = "U3Png";
                 break;
             case "strongRangedUnit":
                 result = getDefinitionByType("rangedUnit");
                 result.damage = 150;
-                result.range = 75;
+                result.range = 80;
                 result.asset = "U4Png";
                 break;
             case "aoeUnit":

@@ -20,7 +20,7 @@ public class Unit {
     public var type:String;
     public var team:int;
     public var actions:Array = new Array();
-    public var path:Array;
+    public var path:Array = new Array();
     public var unitsCreated:int = 0;
     public var maxUnits:int = 0;
     public var speed:Number;

@@ -1,7 +1,6 @@
 package {
 
 import com.emibap.textureAtlas.DynamicAtlas;
-import com.greensock.TweenLite;
 
 import flash.desktop.NativeApplication;
 
@@ -9,20 +8,12 @@ import flash.display.Bitmap;
 
 import flash.display.BitmapData;
 import flash.display.BlendMode;
-import flash.display.Shape;
-import flash.display.Sprite;
 
 import flash.display.Sprite;
 import flash.display.StageQuality;
 import flash.filters.BitmapFilterQuality;
 import flash.filters.BlurFilter;
-import flash.filters.GlowFilter;
 import flash.geom.Matrix;
-import flash.geom.Rectangle;
-
-import org.osmf.elements.HTMLElement;
-
-import starling.core.Starling;
 
 import starling.display.Image;
 import starling.display.Sprite;
@@ -51,9 +42,9 @@ public class Main extends Sprite {
     public static const FPS_GRAPHICS:int = 60;
     public static const FPS_LOGIC:int = 60;
 
-    public static const NPC_PLAYER:Boolean = true;
-    public static const NPC_OPONENT:Boolean = true;
-    public static const NETGAME:Boolean = false;
+    public static const NPC_PLAYER:Boolean = false;
+    public static const NPC_OPONENT:Boolean = false;
+    public static const NETGAME:Boolean = true;
     public static const CROSSED_TURNS:Boolean = true;
 
     [Embed(source="../assets/terrain.png")]
@@ -397,7 +388,7 @@ public class Main extends Sprite {
                     }
                     if (stateMachine.state == "ingame") {
                         if (!ingameTimer.running) {
-                            ingameTimer.duration += 1000;
+                            ingameTimer.duration *= 1.2;
                             ingameTimer.start();
                         }
                     }
@@ -459,8 +450,17 @@ public class Main extends Sprite {
     }
 
     public function drawFromBuildingLine(unit:UnitView, x:Number, y:Number):void{
-        unit.lines.graphics.lineTo(x - unit.owner.x, y - unit.owner.y);
+        var lastP:Point = unit.owner.path.pop();
         unit.owner.path.push(new Point(x,y));
+        unit.owner.path.push(lastP);
+
+        unit.lines.graphics.clear();
+        unit.lines.graphics.lineStyle(10, unit.owner.team == 0 ? 0xff0000 : 0x0000ff);
+        for each(var point:Point in unit.owner.path) {
+            unit.lines.graphics.lineTo(point.x - unit.owner.x, point.y - unit.owner.y);
+        }
+       // unit.lines.graphics.lineTo(x - unit.owner.x, y - unit.owner.y);
+       // unit.lines.graphics.lineTo(unit.owner.player.enemyPlayer.main.x - unit.owner.x, unit.owner.player.enemyPlayer.main.y - unit.owner.y);
         if(!unit.owner.player.remote) {
             netConnect.sendMessage({action: "lines", id: unit.owner.id, x: x, y: y});
         }
@@ -546,6 +546,10 @@ public class Main extends Sprite {
         unit.maxUnits = data.maxUnits;
         unit.income = data.income;
 
+        if(data.cost > 0) {
+            player.gold -= data.cost;
+        }
+
         if(player.team){
             unit.rotation = -Math.PI / 2;
         } else {
@@ -564,7 +568,7 @@ public class Main extends Sprite {
             unit.actions.push(action);
         }
 
-        var behavior:Behavior = new Behavior();
+        var behavior:Behavior;
         if(unit.speed > 0){
             behavior = new Behavior();
             behavior.unit = unit;
@@ -633,7 +637,9 @@ public class Main extends Sprite {
                 lines.y = unit.y;
                 lines.graphics.lineStyle(10, unit.team == 0 ? 0xff0000 : 0x0000ff);
                 unitView.lines = lines;
-                unit.path = new Array();
+                if(data.hasPath) {
+                    unit.path = [new Point(player.enemyPlayer.main.x, player.enemyPlayer.main.y)];
+                }
 
                 break;
         }

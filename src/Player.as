@@ -31,6 +31,7 @@ public class Player {
         stateMachine.state = "waitingAction";
         stateMachine.defineStateRelation("waitingAction", "placingBuilding", "place");
         stateMachine.defineStateRelation("placingBuilding", "selectingPath", "placed");
+        stateMachine.defineStateRelation("placingBuilding", "waitingAction", "placedNoLines");
         stateMachine.defineStateRelation("selectingPath", "waitingAction", "selected");
 
         placeTimer.addEventListener(TimerEvent.TIMER, onPlaceTimer);
@@ -50,13 +51,41 @@ public class Player {
                             buildingSelected = null;
                             if (Main.instance.pressedKeys[Keyboard.Q]) {
                                 Main.instance.releaseKey(Keyboard.Q);
-                                buildingSelected = "spawner";
+                                buildingSelected = "unitSpawner";
                             }
                             if (Main.instance.pressedKeys[Keyboard.W]) {
                                 Main.instance.releaseKey(Keyboard.W);
-                                buildingSelected = "heavySpawner";
+                                buildingSelected = "fastUnitSpawner";
                             }
-                            if (buildingSelected && gold > 0) {
+                            if (Main.instance.pressedKeys[Keyboard.E]) {
+                                Main.instance.releaseKey(Keyboard.E);
+                                buildingSelected = "heavyUnitSpawner";
+                            }
+                            if (Main.instance.pressedKeys[Keyboard.R]) {
+                                Main.instance.releaseKey(Keyboard.R);
+                                buildingSelected = "knightSpawner";
+                            }
+                            if (Main.instance.pressedKeys[Keyboard.A]) {
+                                Main.instance.releaseKey(Keyboard.A);
+                                buildingSelected = "rangedSpawner";
+                            }
+                            if (Main.instance.pressedKeys[Keyboard.S]) {
+                                Main.instance.releaseKey(Keyboard.S);
+                                buildingSelected = "strongRangedSpawner";
+                            }
+                            if (Main.instance.pressedKeys[Keyboard.D]) {
+                                Main.instance.releaseKey(Keyboard.D);
+                                buildingSelected = "aoeSpawner";
+                            }
+                            if (Main.instance.pressedKeys[Keyboard.Z]) {
+                                Main.instance.releaseKey(Keyboard.Z);
+                                buildingSelected = "resource";
+                            }
+                            if (Main.instance.pressedKeys[Keyboard.X]) {
+                                Main.instance.releaseKey(Keyboard.X);
+                                buildingSelected = "tower";
+                            }
+                            if (buildingSelected && Utils.getDefinitionByType(buildingSelected).cost <= gold) {
                                 unitToPutLines = Main.instance.createPlaceView(Main.instance.mousePos.x, Main.instance.mousePos.y, buildingSelected, this);
                                 stateMachine.dispatchEvent("place");
                             } else if(Main.instance.pressedKeys[Keyboard.ESCAPE]){
@@ -69,7 +98,11 @@ public class Player {
                             TweenLite.to(unitToPutLines.view, .15, {x:Main.instance.mousePos.x, y:Main.instance.mousePos.y, ease:Linear.easeNone});
                             if(Main.instance.mousePressed) {
                                 Main.instance.releaseMouse();
-                                stateMachine.dispatchEvent("placed");
+                                if(Utils.getDefinitionByType(buildingSelected).hasPath) {
+                                    stateMachine.dispatchEvent("placed");
+                                } else {
+                                    stateMachine.dispatchEvent("placedNoLines");
+                                }
                                 selectedUnit = buyBuilding(unitToPutLines.view.x, unitToPutLines.view.y, buildingSelected);
                                 unitToPutLines.view.parent.removeChild(unitToPutLines.view);
                             }
@@ -101,7 +134,7 @@ public class Player {
         if(unit){
 
             var data:Object = Utils.getDefinitionByType(buildingSelected);
-            if(data.hasOwnProperty("hasPath")) {
+            if(data.hasPath) {
                 var mainPos:Point;
                 for each(var otherUnit:UnitView in Main.instance.units[team == 0 ? 1 : 0]) {
                     if (otherUnit.owner.type == "main" && otherUnit.owner.team != team) {
@@ -178,7 +211,6 @@ public class Player {
     private function buyBuilding(x:Number, y:Number, type:String):UnitView{
         var data:Object = Utils.getDefinitionByType(type);
         if(gold >= data.cost){
-            gold-= data.cost;
             return Main.instance.createBuilding(x, y, type, this);
         }
         return null;
